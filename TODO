@@ -1,0 +1,7 @@
+
+- Make it work when not called from the main
+- Make it installable
+- Add configurable icons
+- Make the buttons prettier
+- Add error reporting when running commands
+- Make the background image configurable
