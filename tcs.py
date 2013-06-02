@@ -33,7 +33,7 @@ class TCS:
     def destroy(self, widget, data=None):
         gtk.main_quit()
 
-    def __init__(self, config):
+    def __init__(self, config, quit_button_at_start):
         # create a new window
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
     
@@ -56,8 +56,11 @@ class TCS:
         # This is where the actual buttons will go, the rest
         # is layout and spacing
         self.buttonbox = gtk.VBox(homogeneous=False, spacing=0)
+        if quit_button_at_start:
+            self.buttonbox.add(self.add_button("Quit", self.quit))
         self.add_config_buttons(config)
-        self.buttonbox.add(self.add_button("Quit", self.quit))
+        if not quit_button_at_start:
+            self.buttonbox.add(self.add_button("Quit", self.quit))
         self.buttonbox.show()
 
         # Layout:
@@ -87,6 +90,7 @@ class TCS:
         self.set_background_image(config.get("TCS",
                                              "background_image"))
         self.window.show()
+        self.window.present()
 
     def run_program(self, program):
         try:
@@ -198,6 +202,9 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--config", dest="config_file",
                         default="tcs.conf",
                         help="use the given configuration file")
+    parser.add_argument("--quit-button-at-start", action="store_true",
+                        help="Make the quit button the first instead "
+                             "of the last button in the list")
     args = parser.parse_args()
 
     if args.init:
@@ -206,7 +213,7 @@ if __name__ == "__main__":
         if os.path.exists(args.config_file):
             config = ConfigParser.ConfigParser()
             config.readfp(open(args.config_file))
-            tcs = TCS(config)
+            tcs = TCS(config, args.quit_button_at_start)
             tcs.main()
         else:
             print("Config file " + args.config_file +
