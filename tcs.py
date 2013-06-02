@@ -140,9 +140,8 @@ class TCS:
     def add_button(self, text, callback, data=None):
         label = gtk.Label(text)
         label.set_justify(gtk.JUSTIFY_CENTER)
-        label.modify_font(pango.FontDescription("sans bold 22"))
+        label.modify_font(pango.FontDescription("sans bold 20"))
         label.show()
-        print(label.get_attributes())
         button_hbox = gtk.HBox(True, 0)
         button_hbox.pack_start(label, True, True, 0)
         button_hbox.show()
