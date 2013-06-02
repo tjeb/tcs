@@ -20,6 +20,7 @@ pygtk.require('2.0')
 import gtk
 import ConfigParser
 import os
+import pango
 import subprocess
 import sys
 
@@ -32,25 +33,22 @@ class TCS:
 
     def destroy(self, widget, data=None):
         gtk.main_quit()
+    
+    def button_gets_focus(self, widget, event, data=None):
+        widget.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#EEEEEE'))
+        label = widget.get_children()[0].get_children()[0]
+        label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#000000'))
+
+    def button_loses_focus(self, widget, event, data=None):
+        widget.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#707070'))
+        label = widget.get_children()[0].get_children()[0]
+        label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#FFFFFF'))
 
     def __init__(self, config, quit_button_at_start):
-        # create a new window
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
-    
-        # When the window is given the "delete_event" signal (this is given
-        # by the window manager, usually by the "close" option, or on the
-        # titlebar), we ask it to call the delete_event () function
-        # as defined above. The data passed to the callback
-        # function is NULL and is ignored in the callback function.
         self.window.connect("delete_event", self.delete_event)
         self.window.connect("configure_event", self.configure_event)
-        
-        # Here we connect the "destroy" event to a signal handler.  
-        # This event occurs when we call gtk_widget_destroy() on the window,
-        # or if we return FALSE in the "delete_event" callback.
         self.window.connect("destroy", self.destroy)
-    
-        # Sets the border width of the window.
         self.window.set_border_width(10)
 
         # This is where the actual buttons will go, the rest
@@ -62,7 +60,16 @@ class TCS:
         if not quit_button_at_start:
             self.buttonbox.add(self.add_button("Quit", self.quit))
         self.buttonbox.show()
-
+        for child in self.buttonbox.children():
+            child.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#707070'))
+            child.modify_bg(gtk.STATE_ACTIVE, gtk.gdk.color_parse('#EEEEEE'))
+            child.modify_bg(gtk.STATE_PRELIGHT, gtk.gdk.color_parse('#EEEEEE'))
+            child.modify_bg(gtk.STATE_SELECTED, gtk.gdk.color_parse('#FF0000'))
+            label = child.get_children()[0].get_children()[0]
+            label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#FFFFFF'))
+            child.modify_fg(gtk.STATE_ACTIVE, gtk.gdk.color_parse('#000000'))
+            child.modify_fg(gtk.STATE_PRELIGHT, gtk.gdk.color_parse('#000000'))
+            child.modify_fg(gtk.STATE_SELECTED, gtk.gdk.color_parse('#FFFFFF'))
         # Layout:
         # main_vbox
         main_vbox = gtk.VBox(homogeneous=False, spacing=1)
@@ -131,8 +138,19 @@ class TCS:
                                                data))
 
     def add_button(self, text, callback, data=None):
-        button = gtk.Button(text)
+        label = gtk.Label(text)
+        label.set_justify(gtk.JUSTIFY_CENTER)
+        label.modify_font(pango.FontDescription("sans bold 22"))
+        label.show()
+        print(label.get_attributes())
+        button_hbox = gtk.HBox(True, 0)
+        button_hbox.pack_start(label, True, True, 0)
+        button_hbox.show()
+        button = gtk.Button()
+        button.add(button_hbox)
         button.connect("clicked", callback, data)
+        button.connect("focus-in-event", self.button_gets_focus, data)
+        button.connect("focus-out-event", self.button_loses_focus, data)
         button.show()
         return button
     
