@@ -93,6 +93,7 @@ class TCS:
         midright_vbox.show()
         bot_hbox.show()
         main_vbox.show()
+        self.window.resize(gtk.gdk.screen_width(), gtk.gdk.screen_height())
         self.window.fullscreen()
         self.set_background_image(config.get("TCS",
                                              "background_image"))
