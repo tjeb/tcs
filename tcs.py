@@ -100,6 +100,8 @@ class TCS:
         self.window.show()
         self.window.present()
 
+        gtk.gdk.display_get_default().warp_pointer(gtk.gdk.screen_get_default(), gtk.gdk.screen_width(), gtk.gdk.screen_height())
+
     def run_program(self, program):
         try:
             subprocess.call(program.split(' '))
