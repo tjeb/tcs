@@ -100,7 +100,7 @@ class TCS:
         self.window.show()
         self.window.present()
 
-        gtk.gdk.display_get_default().warp_pointer(gtk.gdk.screen_get_default(), gtk.gdk.screen_width(), gtk.gdk.screen_height())
+        gtk.gdk.display_get_default().warp_pointer(gtk.gdk.screen_get_default(), gtk.gdk.screen_width()-2, gtk.gdk.screen_height()-2)
 
     def run_program(self, program):
         try:
