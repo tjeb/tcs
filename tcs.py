@@ -15,14 +15,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import pygtk
-pygtk.require('2.0')
-import gtk
 import ConfigParser
+import gtk
 import os
 import pango
+import pygtk
+import shlex
 import subprocess
 import sys
+
+pygtk.require('2.0')
 
 class TCS:
     def quit(self, widget, data=None):
@@ -104,7 +106,7 @@ class TCS:
 
     def run_program(self, program):
         try:
-            subprocess.call(program.split(' '))
+            subprocess.call(shlex.split(program))
         except OSError as ose:
             print("Error calling: " + program)
             print(ose)
