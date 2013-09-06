@@ -46,7 +46,7 @@ class TCS:
         label = widget.get_children()[0].get_children()[0]
         label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#FFFFFF'))
 
-    def __init__(self, config, quit_button_at_start):
+    def __init__(self, config):
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.connect("delete_event", self.delete_event)
         self.window.connect("configure_event", self.configure_event)
@@ -56,11 +56,7 @@ class TCS:
         # This is where the actual buttons will go, the rest
         # is layout and spacing
         self.buttonbox = gtk.VBox(homogeneous=False, spacing=0)
-        if quit_button_at_start:
-            self.buttonbox.add(self.add_button("Quit", self.quit))
         self.add_config_buttons(config)
-        if not quit_button_at_start:
-            self.buttonbox.add(self.add_button("Quit", self.quit))
         self.buttonbox.show()
         for child in self.buttonbox.children():
             child.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#707070'))
@@ -105,6 +101,10 @@ class TCS:
         gtk.gdk.display_get_default().warp_pointer(gtk.gdk.screen_get_default(), gtk.gdk.screen_width()-2, gtk.gdk.screen_height()-2)
 
     def run_program(self, program):
+        # some special cases
+        if program == "quit":
+            self.quit(self)
+            return
         try:
             subprocess.call(shlex.split(program))
         except OSError as ose:
@@ -212,6 +212,8 @@ def initialize_config_file(file_name):
                      ("command", "command 2"),
                      ("post_command", "command 3"),
                     ])
+        add_command(cp, "Quit",
+                    [("command", "quit")])
         with open(file_name, "w") as out:
             cp.write(out)
             print(file_name + " written")
@@ -224,9 +226,6 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--config", dest="config_file",
                         default="tcs.conf",
                         help="use the given configuration file")
-    parser.add_argument("--quit-button-at-start", action="store_true",
-                        help="Make the quit button the first instead "
-                             "of the last button in the list")
     args = parser.parse_args()
 
     if args.init:
@@ -235,7 +234,7 @@ if __name__ == "__main__":
         if os.path.exists(args.config_file):
             config = ConfigParser.ConfigParser()
             config.readfp(open(args.config_file))
-            tcs = TCS(config, args.quit_button_at_start)
+            tcs = TCS(config)
             tcs.main()
         else:
             print("Config file " + args.config_file +
