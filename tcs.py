@@ -26,7 +26,83 @@ import sys
 
 pygtk.require('2.0')
 
+current_submenu = None
+
+class MenuItem:
+    ACTION_RUN=1
+    ACTION_SUBMENU=2
+    ACTION_BACK=3
+    ACTION_QUIT=4
+
+    """
+    One item corresponds to one button on-screen.
+    It can call:
+    - a program (derived from config file)
+    - a submenu (indirectly derived from config entries that have the
+      submenu value set)
+    - a special function (either back or quit)
+    """
+    def __init__(self, name, action, menu, directory=None, args=[]):
+        self.name = name
+        self.action = action
+        self.menu = menu
+        self.args = args
+
+    def run(self, args=None):
+        if self.action == MenuItem.ACTION_QUIT:
+            sys.exit(0)
+        elif self.action == MenuItem.ACTION_BACK:
+            self.menu.back()
+        elif self.action == MenuItem.ACTION_SUBMENU:
+            self.menu.submenu(self.args[0])
+        elif self.action == MenuItem.ACTION_RUN:
+            for arg in self.args:
+                try:
+                    subprocess.call(shlex.split(program))
+                except OSError as ose:
+                    print("Error calling: " + program)
+                    print(ose)
+
+    def get_name(self):
+        return self.name
+
+    def __str__(self):
+        return "[MenuItem] " + self.name + ": " + str(self.action)
+
+class Menu:
+    """
+    Menu is a collection of menuitems and a way to navigate through
+    them.
+    """
+    def __init__(self, tcs, name):
+        self.tcs = tcs
+        self.name = name
+        self.items = []
+
+    def back(self):
+        if self.parent != None:
+            self.tcs.showmenu(self.parent)
+
+    def submenu(self, submenu):
+        self.tcs.showmenu(submenu)
+
+    def add_item(self, menuitem):
+        self.items.append(menuitem)
+
+    def get_items(self):
+        return self.items
+
+    def get_item_count(self):
+        return len(self.items)
+
 class TCS:
+    def __init__(self, config):
+        self.current_menu = ""
+        self.parse_config_file(config)
+        self.window = None
+        self.show_window()
+        self.show_buttons()
+
     def quit(self, widget, data=None):
         gtk.Widget.destroy(self.window)
 
@@ -35,27 +111,65 @@ class TCS:
 
     def destroy(self, widget, data=None):
         gtk.main_quit()
-    
+
+    # XX TODO: data=None can be removed?
     def button_gets_focus(self, widget, event, data=None):
         widget.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#EEEEEE'))
         label = widget.get_children()[0].get_children()[0]
         label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#000000'))
 
+    # XX TODO: data=None can be removed?
     def button_loses_focus(self, widget, event, data=None):
         widget.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#707070'))
         label = widget.get_children()[0].get_children()[0]
         label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#FFFFFF'))
 
-    def __init__(self, config):
-        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
-        self.window.connect("delete_event", self.delete_event)
-        self.window.connect("configure_event", self.configure_event)
-        self.window.connect("destroy", self.destroy)
-        self.window.set_border_width(10)
+    def get_menu(self, menuname):
+        print("[XX] get menu: " + menuname)
+        if menuname in self.menus:
+            cur_menu = self.menus[menuname]
+        else:
+            # If this is a new menu, add it to the list
+            cur_menu = Menu(self, menuname)
+            self.menus[menuname] = cur_menu
+            # Also look up the parent and add a submenu item
+            menu_parts = menuname.rpartition(".")[0]
+            parent_menu = self.get_menu(menu_parts[0])
+            parent_menu.add_item(MenuItem(menu_parts[2], MenuItem.ACTION_SUBMENU, parent_menu))
+        print("[XX] returning menu")
+        return cur_menu
 
-        # This is where the actual buttons will go, the rest
-        # is layout and spacing
-        self.buttonbox = gtk.VBox(homogeneous=False, spacing=0)
+    def parse_config_file(self, config):
+        self.menus = {}
+        # Add the top-level menu
+        self.menus[""] = Menu(self, "")
+
+        # Parse all entries
+        for section in config.sections():
+            name = section
+            commands = []
+            directory = None
+            special_command = None
+            submenu = ""
+
+            if name == "TCS":
+                # Skip the main config section
+                continue
+            for item in config.items(section):
+                print("ITEM: " + str(item))
+                if item[0] == 'command':
+                    commands.append(item[1])
+                elif item[0] == 'directory':
+                    directory = item[1]
+                elif item[0] == 'submenu':
+                    submenu = item[1]
+
+            cur_menu = self.get_menu(submenu)
+
+            menuitem = MenuItem(name, MenuItem.ACTION_RUN, cur_menu, directory, commands)
+            cur_menu.add_item(menuitem)
+        
+    def show_buttons(self):
         self.add_config_buttons(config)
         self.buttonbox.show()
         for child in self.buttonbox.children():
@@ -68,6 +182,17 @@ class TCS:
             child.modify_fg(gtk.STATE_ACTIVE, gtk.gdk.color_parse('#000000'))
             child.modify_fg(gtk.STATE_PRELIGHT, gtk.gdk.color_parse('#000000'))
             child.modify_fg(gtk.STATE_SELECTED, gtk.gdk.color_parse('#FFFFFF'))
+
+    def show_window(self):
+        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.window.connect("delete_event", self.delete_event)
+        self.window.connect("configure_event", self.configure_event)
+        self.window.connect("destroy", self.destroy)
+        self.window.set_border_width(10)
+
+        # This is where the actual buttons will go, the rest
+        # is layout and spacing
+        self.buttonbox = gtk.VBox(homogeneous=False, spacing=0)
         # Layout:
         # main_vbox
         main_vbox = gtk.VBox(homogeneous=False, spacing=1)
@@ -92,7 +217,8 @@ class TCS:
         bot_hbox.show()
         main_vbox.show()
         self.window.resize(gtk.gdk.screen_width(), gtk.gdk.screen_height())
-        self.window.fullscreen()
+        # TODO: enable fs again
+        #self.window.fullscreen()
         self.set_background_image(config.get("TCS",
                                              "background_image"))
         self.window.show()
@@ -130,19 +256,47 @@ class TCS:
             data[command] = None
 
     def add_config_buttons(self, config):
-        for section in config.sections():
-            name = section
-            if name == "TCS":
-                # Skip the main config section
-                continue
-            data = { 'command' : config.get(section, "command")}
-            self.set_data(data, config, section, "directory")
-            self.set_data(data, config, section, "pre_command")
-            self.set_data(data, config, section, "post_command")
-            self.buttonbox.add(self.add_button(name, self.run_command,
-                                               data))
+        mn = self.current_menu
+        if mn == "":
+            print("[XX] current menu: main")
+        else:
+            print("[XX] current menu: %s" % mn)
+        menu = self.get_menu(mn)
+        print("[XX] has %d elements" % menu.get_item_count())
+        for old_button in self.buttonbox.get_children():
+            self.buttonbox.remove(old_button)
+        for menuitem in menu.get_items():
+            print("[XX] item: " + str(menuitem))
+            self.buttonbox.add(self.create_button(menuitem))
+        #for section in config.sections():
+        #    name = section
+        #    if name == "TCS":
+        #        # Skip the main config section
+        #        continue
+        #    data = { 'command' : config.get(section, "command")}
+        #    self.set_data(data, config, section, "directory")
+        #    self.set_data(data, config, section, "pre_command")
+        #    self.set_data(data, config, section, "post_command")
+        #    self.buttonbox.add(self.add_button(name, self.run_command,
+        #                                       data))
 
-    def add_button(self, text, callback, data=None):
+    def create_button(self, menuitem):
+        label = gtk.Label(menuitem.get_name())
+        label.set_justify(gtk.JUSTIFY_CENTER)
+        label.modify_font(pango.FontDescription("sans bold 20"))
+        label.show()
+        button_hbox = gtk.HBox(True, 0)
+        button_hbox.pack_start(label, True, True, 0)
+        button_hbox.show()
+        button = gtk.Button()
+        button.add(button_hbox)
+        button.connect("clicked", menuitem.run)
+        button.connect("focus-in-event", self.button_gets_focus)
+        button.connect("focus-out-event", self.button_loses_focus)
+        button.show()
+        return button
+
+    def old_XX_add_button(self, text, callback, data=None):
         label = gtk.Label(text)
         label.set_justify(gtk.JUSTIFY_CENTER)
         label.modify_font(pango.FontDescription("sans bold 20"))
