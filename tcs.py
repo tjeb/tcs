@@ -190,7 +190,7 @@ class TCS:
 
             cur_menu = self.get_menu(submenu)
 
-            menuitem = MenuItem(name, item_type, cur_menu, directory, commands)
+            menuitem = MenuItem(name_parts[2], item_type, cur_menu, directory, commands)
             cur_menu.add_item(menuitem)
         
     def show_buttons(self):
