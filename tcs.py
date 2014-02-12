@@ -186,6 +186,7 @@ class Menu:
         """
         if self.parent != None:
             self.tcs.show_menu(self.parent)
+            self.tcs.set_button_focus(self.name.rpartition(".")[2])
 
     def submenu(self, submenu):
         """
@@ -244,6 +245,7 @@ class TCS:
         """
         self.current_menu = menu
         self.show_buttons()
+        self.set_button_focus()
 
     def get_menu(self, menuname):
         """
@@ -332,6 +334,21 @@ class TCS:
             child.modify_fg(gtk.STATE_PRELIGHT, gtk.gdk.color_parse('#000000'))
             child.modify_fg(gtk.STATE_SELECTED, gtk.gdk.color_parse('#FFFFFF'))
 
+    def set_button_focus(self, button_name=None):
+        """
+        If a button name is given, and it can be found, give it focus.
+        If no name is given, the first button is given focus.
+        """
+        for child in self.buttonbox.children():
+            if button_name is None:
+                child.grab_focus()
+                return
+            else:
+                label = child.get_children()[0].get_children()[0]
+                if label.get_text() == button_name:
+                    child.grab_focus()
+                    return
+
     def show_window(self):
         """
         Create and show the main window
@@ -369,7 +386,7 @@ class TCS:
         bot_hbox.show()
         main_vbox.show()
         self.window.resize(gtk.gdk.screen_width(), gtk.gdk.screen_height())
-        #self.window.fullscreen()
+        self.window.fullscreen()
         self.set_background_image(self.config.get("TCS",
                                                   "background_image"))
         self.window.show()
