@@ -1,5 +1,8 @@
 #!/usr/bin/python
-
+"""
+TjebCadeStarter, a simplistic frontend for arcade machines.
+Or, if you will, a very simple full-screen button menu.
+"""
 # Copyright (C) 2013 Jelte Jansen
 # 
 # This program is free software: you can redistribute it and/or modify
@@ -26,30 +29,98 @@ import sys
 
 pygtk.require('2.0')
 
-current_submenu = None
+#
+# Callbacks for gtk events
+#
+def cb_destroy(widget, data=None):
+    """
+    Destroy the window
+    """
+    gtk.main_quit()
+
+def cb_button_gets_focus(widget, event):
+    """
+    Change colors when button receives focus
+    """
+    widget.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#EEEEEE'))
+    label = widget.get_children()[0].get_children()[0]
+    label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#000000'))
+
+def cb_button_loses_focus(widget, event):
+    """
+    Change colors when button loses focus
+    """
+    widget.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#707070'))
+    label = widget.get_children()[0].get_children()[0]
+    label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#FFFFFF'))
+#
+# End of callbacks for GTK events
+#
+
+#
+# Helper functions
+#
+def create_button(menuitem):
+    """
+    Create a button from the given menuitem
+    """
+    label = gtk.Label(menuitem.get_name())
+    label.set_justify(gtk.JUSTIFY_CENTER)
+    label.modify_font(pango.FontDescription("sans bold 20"))
+    label.show()
+    button_hbox = gtk.HBox(True, 0)
+    button_hbox.pack_start(label, True, True, 0)
+    button_hbox.show()
+    button = gtk.Button()
+    button.add(button_hbox)
+    button.connect("clicked", menuitem.run)
+    button.connect("focus-in-event", cb_button_gets_focus)
+    button.connect("focus-out-event", cb_button_loses_focus)
+    button.show()
+    return button
+#
+# End of helper functions
+#
 
 class MenuItem:
-    ACTION_RUN=1
-    ACTION_SUBMENU=2
-    ACTION_BACK=3
-    ACTION_QUIT=4
-
     """
+    A single menu item.
+
     One item corresponds to one button on-screen.
+
     It can call:
     - a program (derived from config file)
     - a submenu (indirectly derived from config entries that have the
       submenu value set)
     - a special function (either back or quit)
     """
-    def __init__(self, name, action, menu, directory=None, args=[]):
+    
+    ACTION_RUN = 1
+    ACTION_SUBMENU = 2
+    ACTION_BACK = 3
+    ACTION_QUIT = 4
+
+    def __init__(self, name, action, menu, directory=None, arguments=None):
+        """
+        name (string): the name that is shown on screen.
+        action (int): an ACTION_TYPE which tells the button how to behave
+        menu (Menu): the menu this button belongs to
+        directory (string): UNUSED ATM, directory to execute the commands in
+        arguments (list): either a list of commands, or a 1-element list of the submenu (Menu)
+        """
         self.name = name
         self.action = action
         self.menu = menu
         self.directory = directory
-        self.args = args
+        if arguments is None:
+            self.args = []
+        else:
+            self.args = arguments
 
-    def run(self, args=None):
+    def run(self, _):
+        """
+        Run the action defined by this menu item.
+        """
         if self.action == MenuItem.ACTION_QUIT:
             sys.exit(0)
         elif self.action == MenuItem.ACTION_BACK:
@@ -65,9 +136,15 @@ class MenuItem:
                     print(ose)
 
     def get_name(self):
+        """
+        Returns the name of this menu item
+        """
         return self.name
 
     def __str__(self):
+        """
+        String representation, of the form name: action_type (int)
+        """
         return "[MenuItem] " + self.name + ": " + str(self.action)
 
 class Menu:
@@ -75,63 +152,73 @@ class Menu:
     Menu is a collection of menuitems and a way to navigate through
     them.
     """
-    def __init__(self, tcs, name, parent=None):
-        self.tcs = tcs
+    def __init__(self, main_tcs, name, parent=None):
+        self.tcs = main_tcs
         self.name = name
         self.items = []
         self.parent = parent
 
     def back(self):
+        """
+        Make TCS go to the parent of this menu
+        """
         if self.parent != None:
             self.tcs.show_menu(self.parent)
 
     def submenu(self, submenu):
+        """
+        Go to the given submenu (a Menu)
+        """
         self.tcs.show_menu(submenu)
 
     def add_item(self, menuitem):
+        """
+        Add a MenuItem to this menu
+        """
         self.items.append(menuitem)
 
     def get_items(self):
+        """
+        Returns a list of all the MenuItems in this menu
+        """
         return self.items
 
     def get_item_count(self):
+        """
+        Returns the number of MenuItems this menu has
+        """
         return len(self.items)
 
 class TCS:
-    def __init__(self, config):
-        self.parse_config_file(config)
+    """
+    Main TjebCadeStarter class. Shows the 'window' and the menus
+    """
+    def __init__(self, tcs_config):
+        self.config = tcs_config
+        self.menus = {}
+        self.parse_config_file()
         self.current_menu = self.get_menu("")
+
+        self.pixbuf = None
+        self.pixmap = None
+        self.buttonbox = None
         self.window = None
-        self.show_window()
-        self.show_buttons()
 
     def show_menu(self, menu):
+        """
+        Show the given Menu
+        """
         self.current_menu = menu
         self.show_buttons()
 
-    def quit(self, widget, data=None):
-        gtk.Widget.destroy(self.window)
-
-    def delete_event(self, widget, event, data=None):
-        return False
-
-    def destroy(self, widget, data=None):
-        gtk.main_quit()
-
-    # XX TODO: data=None can be removed?
-    def button_gets_focus(self, widget, event, data=None):
-        widget.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#EEEEEE'))
-        label = widget.get_children()[0].get_children()[0]
-        label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#000000'))
-
-    # XX TODO: data=None can be removed?
-    def button_loses_focus(self, widget, event, data=None):
-        widget.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#707070'))
-        label = widget.get_children()[0].get_children()[0]
-        label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#FFFFFF'))
-
     def get_menu(self, menuname):
-        print("[XX] get menu: " + menuname)
+        """
+        Returns the menu with the given name.
+        If the menu doesn't exist yet, it is created with a back
+        button, and with a new menuitem in its parent
+        Menu definitions are of the form
+        'parent_menu.sub_menu.subsub_menu'
+        """
         if menuname in self.menus:
             cur_menu = self.menus[menuname]
         else:
@@ -141,27 +228,31 @@ class TCS:
             parent_menu = self.get_menu(menu_parts[0])
 
             cur_menu = Menu(self, menuname, parent_menu)
-            parent_menu.add_item(MenuItem(menu_parts[2], MenuItem.ACTION_SUBMENU, parent_menu, args=[cur_menu]))
+            parent_menu.add_item(MenuItem(menu_parts[2],
+                                          MenuItem.ACTION_SUBMENU,
+                                          parent_menu,
+                                          arguments=[cur_menu]))
             # Add a back button
             cur_menu.add_item(MenuItem("Back", MenuItem.ACTION_BACK, cur_menu))
 
             # Add it to the total list of menus
             self.menus[menuname] = cur_menu
 
-        print("[XX] returning menu")
         return cur_menu
 
-    def parse_config_file(self, config):
-        self.menus = {}
+    def parse_config_file(self):
+        """
+        Parse the main config file, and create Menus and MenuItems
+        from it
+        """
         # Add the top-level menu
         self.menus[""] = Menu(self, "")
 
         # Parse all entries
-        for section in config.sections():
+        for section in self.config.sections():
             name = section
             commands = []
             directory = None
-            special_command = None
             submenu = ""
             item_type = MenuItem.ACTION_RUN
 
@@ -170,14 +261,7 @@ class TCS:
                 continue
             name_parts = name.rpartition(".")
             submenu = name_parts[0]
-            #if name_parts[0] != "":
-            #    # This is part of a submenu; find the correct
-            #    # submenu, and if it is new, add a button to
-            #    # the current menu
-            #    print("[XX] SUBMENU!")
-            #    pass
-            for item in config.items(section):
-                print("ITEM: " + str(item))
+            for item in self.config.items(section):
                 if item[0] == 'command':
                     if item[1] == 'quit':
                         item_type = MenuItem.ACTION_QUIT
@@ -190,11 +274,15 @@ class TCS:
 
             cur_menu = self.get_menu(submenu)
 
-            menuitem = MenuItem(name_parts[2], item_type, cur_menu, directory, commands)
+            menuitem = MenuItem(name_parts[2], item_type,
+                                cur_menu, directory, commands)
             cur_menu.add_item(menuitem)
         
     def show_buttons(self):
-        self.add_config_buttons(config)
+        """
+        Show the buttons window element
+        """
+        self.add_config_buttons()
         self.buttonbox.show()
         for child in self.buttonbox.children():
             child.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#707070'))
@@ -208,10 +296,13 @@ class TCS:
             child.modify_fg(gtk.STATE_SELECTED, gtk.gdk.color_parse('#FFFFFF'))
 
     def show_window(self):
+        """
+        Create and show the main window
+        """
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
-        self.window.connect("delete_event", self.delete_event)
-        self.window.connect("configure_event", self.configure_event)
-        self.window.connect("destroy", self.destroy)
+        #self.window.connect("delete_event", self.delete_event)
+        self.window.connect("configure_event", self.cb_configure_event)
+        self.window.connect("destroy", cb_destroy)
         self.window.set_border_width(10)
 
         # This is where the actual buttons will go, the rest
@@ -241,164 +332,94 @@ class TCS:
         bot_hbox.show()
         main_vbox.show()
         self.window.resize(gtk.gdk.screen_width(), gtk.gdk.screen_height())
-        # TODO: enable fs again
         #self.window.fullscreen()
-        self.set_background_image(config.get("TCS",
-                                             "background_image"))
+        self.set_background_image(self.config.get("TCS",
+                                                  "background_image"))
         self.window.show()
         self.window.present()
 
-        # TODO: enable mouse move again
-        #gtk.gdk.display_get_default().warp_pointer(gtk.gdk.screen_get_default(), gtk.gdk.screen_width()-2, gtk.gdk.screen_height()-2)
+        gtk.gdk.display_get_default().warp_pointer(gtk.gdk.screen_get_default(),
+                                                   gtk.gdk.screen_width()-2,
+                                                   gtk.gdk.screen_height()-2)
 
-    def run_program(self, program):
-        # some special cases
-        if program == "quit":
-            self.quit(self)
-            return
-        try:
-            subprocess.call(shlex.split(program))
-        except OSError as ose:
-            print("Error calling: " + program)
-            print(ose)
-
-    def run_command(self, widget, data=None):
-        orig_directory = os.getcwd()
-        if data['directory']:
-            os.chdir(data['directory'])
-        # make sure the post always gets run
-        if data['pre_command']:
-            self.run_program(data['pre_command'])
-        self.run_program(data['command'])
-        if data['post_command']:
-            self.run_program(data['post_command'])
-        os.chdir(orig_directory)
-    
-    def set_data(self, data, config, section, command):
-        if config.has_option(section, command):
-            data[command] = config.get(section, command)
-        else:
-            data[command] = None
-
-    def add_config_buttons(self, config):
-        #mn = self.current_menu
-        #if mn == "":
-        #    print("[XX] current menu: main")
-        #else:
-        #    print("[XX] current menu: %s" % mn)
-        #menu = self.get_menu(mn)
-        menu = self.current_menu
-        #print("[XX] has %d elements" % menu.get_item_count())
+    def add_config_buttons(self):
+        """
+        Add the buttons to the buttonbox
+        """
         for old_button in self.buttonbox.get_children():
             self.buttonbox.remove(old_button)
-        for menuitem in menu.get_items():
-            #print("[XX] item: " + str(menuitem))
-            self.buttonbox.add(self.create_button(menuitem))
-        #for section in config.sections():
-        #    name = section
-        #    if name == "TCS":
-        #        # Skip the main config section
-        #        continue
-        #    data = { 'command' : config.get(section, "command")}
-        #    self.set_data(data, config, section, "directory")
-        #    self.set_data(data, config, section, "pre_command")
-        #    self.set_data(data, config, section, "post_command")
-        #    self.buttonbox.add(self.add_button(name, self.run_command,
-        #                                       data))
+        for menuitem in self.current_menu.get_items():
+            self.buttonbox.add(create_button(menuitem))
 
-    def create_button(self, menuitem):
-        label = gtk.Label(menuitem.get_name())
-        label.set_justify(gtk.JUSTIFY_CENTER)
-        label.modify_font(pango.FontDescription("sans bold 20"))
-        label.show()
-        button_hbox = gtk.HBox(True, 0)
-        button_hbox.pack_start(label, True, True, 0)
-        button_hbox.show()
-        button = gtk.Button()
-        button.add(button_hbox)
-        button.connect("clicked", menuitem.run)
-        button.connect("focus-in-event", self.button_gets_focus)
-        button.connect("focus-out-event", self.button_loses_focus)
-        button.show()
-        return button
 
-    def old_XX_add_button(self, text, callback, data=None):
-        label = gtk.Label(text)
-        label.set_justify(gtk.JUSTIFY_CENTER)
-        label.modify_font(pango.FontDescription("sans bold 20"))
-        label.show()
-        button_hbox = gtk.HBox(True, 0)
-        button_hbox.pack_start(label, True, True, 0)
-        button_hbox.show()
-        button = gtk.Button()
-        button.add(button_hbox)
-        button.connect("clicked", callback, data)
-        button.connect("focus-in-event", self.button_gets_focus, data)
-        button.connect("focus-out-event", self.button_loses_focus, data)
-        button.show()
-        return button
-    
     def set_background_image(self, filename):
+        """
+        Set the background image for the main window
+        """
         self.pixbuf = gtk.gdk.pixbuf_new_from_file(filename)
-        self.pixmap, mask = self.pixbuf.render_pixmap_and_mask()
+        self.pixmap, _ = self.pixbuf.render_pixmap_and_mask()
 
         self.window.set_app_paintable(gtk.TRUE)
         self.window.realize()
         self.window.window.set_back_pixmap(self.pixmap, False)
 
     def resize_background_image(self):
-        src_width = self.pixbuf.get_width()
-        src_height = self.pixbuf.get_height()
+        """
+        Resize the background image to the window size
+        """
         dst_width, dst_height = self.window.window.get_size()
 
-        # Scale preserving ratio
-        scale = min(float(dst_width)/src_width, float(dst_height)/src_height)
-        new_width = int(scale*src_width)
-        new_height = int(scale*src_height)
         new_pixbuf = self.pixbuf.scale_simple(dst_width,
                                               dst_height,
                                               gtk.gdk.INTERP_BILINEAR)
-        self.pixmap, mask = new_pixbuf.render_pixmap_and_mask()
-        self.window.window.set_back_pixmap(self.pixmap, False)
+        pixmap, _ = new_pixbuf.render_pixmap_and_mask()
+        self.window.window.set_back_pixmap(pixmap, False)
     
-    def configure_event(self, widget, event):
+    def cb_configure_event(self, widget, event):
+        """
+        Configure event callback
+        """
         self.resize_background_image()
         
-    def main(self):
-        # All PyGTK applications must have a gtk.main(). Control ends here
-        # and waits for an event to occur (like a key press or mouse event).
-        gtk.main()
-
 def add_command(config, section, settings):
+    """
+    Config initializer on --init; add a command
+    """
     config.add_section(section)
     for name, value in settings:
         config.set(section, name, value)
 
 def initialize_config_file(file_name):
+    """
+    Config initializer on --init, initialize an example config file
+    """
     if os.path.exists(file_name):
         print("Error: %s already exists, please remove it "
               "or use a different file to initialize" % (file_name))
     else:
         # Initialize empty config file
-        cp = ConfigParser.ConfigParser()
-        add_command(cp, "TCS", [("background_image", 
+        confp = ConfigParser.ConfigParser()
+        add_command(confp, "TCS", [("background_image", 
                     os.getcwd() + 
                     '/images/default_background.jpg')])
-        add_command(cp, "Gnome Terminal",
+        add_command(confp, "Gnome Terminal",
                     [("command", "gnome-terminal")])
-        add_command(cp, "Example of three commands in a directory",
+        add_command(confp, "Example of three commands in a directory",
                     [("directory", "/home/foo/bar"),
                      ("pre_command", "command 1"),
                      ("command", "command 2"),
                      ("post_command", "command 3"),
                     ])
-        add_command(cp, "Quit",
+        add_command(confp, "Quit",
                     [("command", "quit")])
         with open(file_name, "w") as out:
-            cp.write(out)
+            confp.write(out)
             print(file_name + " written")
 
-if __name__ == "__main__":
+def main():
+    """
+    Main function, run a TCS instance.
+    """
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--init", action="store_true",
@@ -415,7 +436,12 @@ if __name__ == "__main__":
             config = ConfigParser.ConfigParser()
             config.readfp(open(args.config_file))
             tcs = TCS(config)
-            tcs.main()
+            tcs.show_window()
+            tcs.show_menu(tcs.current_menu)
+            gtk.main()
         else:
             print("Config file " + args.config_file +
                   " not found, please use --init to generate one")
+
+if __name__ == "__main__":
+    main()
