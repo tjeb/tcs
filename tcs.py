@@ -46,6 +46,7 @@ class MenuItem:
         self.name = name
         self.action = action
         self.menu = menu
+        self.directory = directory
         self.args = args
 
     def run(self, args=None):
@@ -58,9 +59,9 @@ class MenuItem:
         elif self.action == MenuItem.ACTION_RUN:
             for arg in self.args:
                 try:
-                    subprocess.call(shlex.split(program))
+                    subprocess.call(shlex.split(arg))
                 except OSError as ose:
-                    print("Error calling: " + program)
+                    print("Error calling: " + arg)
                     print(ose)
 
     def get_name(self):
@@ -74,17 +75,18 @@ class Menu:
     Menu is a collection of menuitems and a way to navigate through
     them.
     """
-    def __init__(self, tcs, name):
+    def __init__(self, tcs, name, parent=None):
         self.tcs = tcs
         self.name = name
         self.items = []
+        self.parent = parent
 
     def back(self):
         if self.parent != None:
-            self.tcs.showmenu(self.parent)
+            self.tcs.show_menu(self.parent)
 
     def submenu(self, submenu):
-        self.tcs.showmenu(submenu)
+        self.tcs.show_menu(submenu)
 
     def add_item(self, menuitem):
         self.items.append(menuitem)
@@ -97,10 +99,14 @@ class Menu:
 
 class TCS:
     def __init__(self, config):
-        self.current_menu = ""
         self.parse_config_file(config)
+        self.current_menu = self.get_menu("")
         self.window = None
         self.show_window()
+        self.show_buttons()
+
+    def show_menu(self, menu):
+        self.current_menu = menu
         self.show_buttons()
 
     def quit(self, widget, data=None):
@@ -130,12 +136,18 @@ class TCS:
             cur_menu = self.menus[menuname]
         else:
             # If this is a new menu, add it to the list
-            cur_menu = Menu(self, menuname)
-            self.menus[menuname] = cur_menu
-            # Also look up the parent and add a submenu item
-            menu_parts = menuname.rpartition(".")[0]
+            # First look up the parent and add a submenu item
+            menu_parts = menuname.rpartition(".")
             parent_menu = self.get_menu(menu_parts[0])
-            parent_menu.add_item(MenuItem(menu_parts[2], MenuItem.ACTION_SUBMENU, parent_menu))
+
+            cur_menu = Menu(self, menuname, parent_menu)
+            parent_menu.add_item(MenuItem(menu_parts[2], MenuItem.ACTION_SUBMENU, parent_menu, args=[cur_menu]))
+            # Add a back button
+            cur_menu.add_item(MenuItem("Back", MenuItem.ACTION_BACK, cur_menu))
+
+            # Add it to the total list of menus
+            self.menus[menuname] = cur_menu
+
         print("[XX] returning menu")
         return cur_menu
 
@@ -151,14 +163,26 @@ class TCS:
             directory = None
             special_command = None
             submenu = ""
+            item_type = MenuItem.ACTION_RUN
 
             if name == "TCS":
                 # Skip the main config section
                 continue
+            name_parts = name.rpartition(".")
+            submenu = name_parts[0]
+            #if name_parts[0] != "":
+            #    # This is part of a submenu; find the correct
+            #    # submenu, and if it is new, add a button to
+            #    # the current menu
+            #    print("[XX] SUBMENU!")
+            #    pass
             for item in config.items(section):
                 print("ITEM: " + str(item))
                 if item[0] == 'command':
-                    commands.append(item[1])
+                    if item[1] == 'quit':
+                        item_type = MenuItem.ACTION_QUIT
+                    else:
+                        commands.append(item[1])
                 elif item[0] == 'directory':
                     directory = item[1]
                 elif item[0] == 'submenu':
@@ -166,7 +190,7 @@ class TCS:
 
             cur_menu = self.get_menu(submenu)
 
-            menuitem = MenuItem(name, MenuItem.ACTION_RUN, cur_menu, directory, commands)
+            menuitem = MenuItem(name, item_type, cur_menu, directory, commands)
             cur_menu.add_item(menuitem)
         
     def show_buttons(self):
@@ -224,7 +248,8 @@ class TCS:
         self.window.show()
         self.window.present()
 
-        gtk.gdk.display_get_default().warp_pointer(gtk.gdk.screen_get_default(), gtk.gdk.screen_width()-2, gtk.gdk.screen_height()-2)
+        # TODO: enable mouse move again
+        #gtk.gdk.display_get_default().warp_pointer(gtk.gdk.screen_get_default(), gtk.gdk.screen_width()-2, gtk.gdk.screen_height()-2)
 
     def run_program(self, program):
         # some special cases
@@ -256,17 +281,18 @@ class TCS:
             data[command] = None
 
     def add_config_buttons(self, config):
-        mn = self.current_menu
-        if mn == "":
-            print("[XX] current menu: main")
-        else:
-            print("[XX] current menu: %s" % mn)
-        menu = self.get_menu(mn)
-        print("[XX] has %d elements" % menu.get_item_count())
+        #mn = self.current_menu
+        #if mn == "":
+        #    print("[XX] current menu: main")
+        #else:
+        #    print("[XX] current menu: %s" % mn)
+        #menu = self.get_menu(mn)
+        menu = self.current_menu
+        #print("[XX] has %d elements" % menu.get_item_count())
         for old_button in self.buttonbox.get_children():
             self.buttonbox.remove(old_button)
         for menuitem in menu.get_items():
-            print("[XX] item: " + str(menuitem))
+            #print("[XX] item: " + str(menuitem))
             self.buttonbox.add(self.create_button(menuitem))
         #for section in config.sections():
         #    name = section
