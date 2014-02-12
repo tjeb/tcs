@@ -99,6 +99,7 @@ class MenuItem:
     ACTION_SUBMENU = 2
     ACTION_BACK = 3
     ACTION_QUIT = 4
+    ACTION_RELOAD = 5
 
     def __init__(self, name, action, menu, directory=None, arguments=None):
         """
@@ -127,6 +128,8 @@ class MenuItem:
             self.menu.back()
         elif self.action == MenuItem.ACTION_SUBMENU:
             self.menu.submenu(self.args[0])
+        elif self.action == MenuItem.ACTION_RELOAD:
+            self.menu.tcs.reload_config_file()
         elif self.action == MenuItem.ACTION_RUN:
             for arg in self.args:
                 try:
@@ -193,16 +196,28 @@ class TCS:
     """
     Main TjebCadeStarter class. Shows the 'window' and the menus
     """
-    def __init__(self, tcs_config):
-        self.config = tcs_config
-        self.menus = {}
-        self.parse_config_file()
-        self.current_menu = self.get_menu("")
-
+    def __init__(self, config_filename):
+        self.config_filename = config_filename
+        self.menus = None
         self.pixbuf = None
         self.pixmap = None
         self.buttonbox = None
         self.window = None
+
+        self.read_config_file()
+
+    def reload_config_file(self):
+        self.read_config_file()
+        self.show_menu(self.current_menu)
+
+    def read_config_file(self):
+        """
+        Read the config file from disk
+        """
+        self.config = ConfigParser.ConfigParser()
+        self.config.readfp(open(self.config_filename))
+        self.parse_config_file()
+        self.current_menu = self.get_menu("")
 
     def show_menu(self, menu):
         """
@@ -245,6 +260,7 @@ class TCS:
         Parse the main config file, and create Menus and MenuItems
         from it
         """
+        self.menus = {}
         # Add the top-level menu
         self.menus[""] = Menu(self, "")
 
@@ -265,6 +281,8 @@ class TCS:
                 if item[0] == 'command':
                     if item[1] == 'quit':
                         item_type = MenuItem.ACTION_QUIT
+                    elif item[1] == 'reload':
+                        item_type = MenuItem.ACTION_RELOAD
                     else:
                         commands.append(item[1])
                 elif item[0] == 'directory':
@@ -433,9 +451,7 @@ def main():
         initialize_config_file(args.config_file)
     else:
         if os.path.exists(args.config_file):
-            config = ConfigParser.ConfigParser()
-            config.readfp(open(args.config_file))
-            tcs = TCS(config)
+            tcs = TCS(args.config_file)
             tcs.show_window()
             tcs.show_menu(tcs.current_menu)
             gtk.main()
