@@ -78,6 +78,21 @@ def create_button(menuitem):
     button.connect("focus-out-event", cb_button_loses_focus)
     button.show()
     return button
+
+class DirContext:
+    """
+    Class to temporarily switch working directories
+    """
+    def __init__(self, new_directory):
+        self.orig_directory = os.getcwd()
+        self.new_directory = new_directory
+
+    def __enter__(self):
+        os.chdir(self.new_directory)
+
+    def __exit__(self, *args):
+        os.chdir(self.orig_directory)
+
 #
 # End of helper functions
 #
@@ -112,7 +127,10 @@ class MenuItem:
         self.name = name
         self.action = action
         self.menu = menu
-        self.directory = directory
+        if directory is None:
+            self.directory = os.getcwd()
+        else:
+            self.directory = directory
         if arguments is None:
             self.args = []
         else:
@@ -131,12 +149,13 @@ class MenuItem:
         elif self.action == MenuItem.ACTION_RELOAD:
             self.menu.tcs.reload_config_file()
         elif self.action == MenuItem.ACTION_RUN:
-            for arg in self.args:
-                try:
-                    subprocess.call(shlex.split(arg))
-                except OSError as ose:
-                    print("Error calling: " + arg)
-                    print(ose)
+            with DirContext(self.directory):
+                for arg in self.args:
+                    try:
+                        subprocess.call(shlex.split(arg))
+                    except OSError as ose:
+                        print("Error calling: " + arg)
+                        print(ose)
 
     def get_name(self):
         """
