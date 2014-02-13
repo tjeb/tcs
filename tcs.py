@@ -108,6 +108,7 @@ class Logger:
 
     def __enter__(self):
         self.open_logfile()
+        return self
 
     def __exit__(self, *args):
         self.logfile.close()
@@ -132,7 +133,7 @@ class Logger:
             self.close_logfile()
             self.logfile = new_logfile
         except IOError as ioe:
-            self.log("Error opening log file: " + str(ioe))
+            self.log.log("Error opening log file: " + str(ioe))
 
     def close_logfile(self):
         """
@@ -152,6 +153,7 @@ class Logger:
         else:
             self.logfile.write(msg)
             self.logfile.write("\n")
+            self.logfile.flush()
 
 class MenuItem:
     """
@@ -171,6 +173,7 @@ class MenuItem:
     ACTION_BACK = 3
     ACTION_QUIT = 4
     ACTION_RELOAD = 5
+    ACTION_NAMES = [ "", "RUN", "SUBMENU", "BACK", "QUIT", "RELOAD" ]
 
     def __init__(self, name, action, menu, directory=None, arguments=None):
         """
@@ -196,6 +199,10 @@ class MenuItem:
         """
         Run the action defined by this menu item.
         """
+        self.menu.tcs.log.log("MenuItem activated: " +
+                              self.get_name() +
+                              " Action type: " +
+                              self.ACTION_NAMES[self.action])
         if self.action == MenuItem.ACTION_QUIT:
             sys.exit(0)
         elif self.action == MenuItem.ACTION_BACK:
@@ -208,6 +215,7 @@ class MenuItem:
             with DirContext(self.directory):
                 for arg in self.args:
                     try:
+                        self.menu.tcs.log.log("Run command: " + arg)
                         subprocess.call(shlex.split(arg))
                     except OSError as ose:
                         print("Error calling: " + arg)
@@ -250,6 +258,12 @@ class Menu:
         """
         self.tcs.show_menu(submenu)
 
+    def get_name(self):
+        """
+        Returns the name of the menu
+        """
+        return self.name
+    
     def add_item(self, menuitem):
         """
         Add a MenuItem to this menu
@@ -272,7 +286,9 @@ class TCS:
     """
     Main TjebCadeStarter class. Shows the 'window' and the menus
     """
-    def __init__(self, config_filename):
+    def __init__(self, config_filename, log):
+        self.log = log
+        self.log.log("Starting TjebCadeStarter")
         self.config_filename = config_filename
         self.menus = None
         self.pixbuf = None
@@ -294,6 +310,7 @@ class TCS:
         """
         Read the config file from disk
         """
+        self.log.log("Reading config file: " + self.config_filename)
         self.config = ConfigParser.ConfigParser()
         self.config.readfp(open(self.config_filename))
         self.parse_config_file()
@@ -303,6 +320,7 @@ class TCS:
         """
         Show the given Menu
         """
+        self.log.log("Show menu: " + menu.get_name())
         self.current_menu = menu
         self.show_buttons()
         self.set_button_focus()
@@ -318,6 +336,7 @@ class TCS:
         if menuname in self.menus:
             cur_menu = self.menus[menuname]
         else:
+            self.log.log("Creating menu " + menuname)
             # If this is a new menu, add it to the list
             # First look up the parent and add a submenu item
             menu_parts = menuname.rpartition(".")
@@ -470,6 +489,7 @@ class TCS:
         """
         Set the background image for the main window
         """
+        self.log.log("Loading background image " + filename)
         self.pixbuf = gtk.gdk.pixbuf_new_from_file(filename)
         self.pixmap, _ = self.pixbuf.render_pixmap_and_mask()
 
@@ -547,10 +567,11 @@ def main():
         initialize_config_file(args.config_file)
     else:
         if os.path.exists(args.config_file):
-            tcs = TCS(args.config_file)
-            tcs.show_window()
-            tcs.show_menu(tcs.current_menu)
-            gtk.main()
+            with Logger() as log:
+                tcs = TCS(args.config_file, log)
+                tcs.show_window()
+                tcs.show_menu(tcs.current_menu)
+                gtk.main()
         else:
             print("Config file " + args.config_file +
                   " not found, please use --init to generate one")
