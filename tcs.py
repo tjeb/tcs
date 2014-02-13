@@ -97,6 +97,62 @@ class DirContext:
 # End of helper functions
 #
 
+class Logger:
+    """
+    Simple logger class that can be used as a context
+    """
+    def __init__(self, filename=None):
+        self.filename = None
+        self.set_filename(filename)
+        self.logfile = None
+
+    def __enter__(self):
+        self.open_logfile()
+
+    def __exit__(self, *args):
+        self.logfile.close()
+
+    def set_filename(self, filename = None):
+        """
+        Sets the filename of the logfile to open with open_logfile()
+        Defaults to /tmp/tcs.log
+        """
+        if filename is not None:
+            self.filename = filename
+        else:
+            self.filename = "/tmp/tcs.log"
+
+    def open_logfile(self):
+        """
+        Opens a logfile with the given name. Replaces the
+        existing one if it succeeds. Otherwise logs an error
+        """
+        try:
+            new_logfile = open(self.filename, "w")
+            self.close_logfile()
+            self.logfile = new_logfile
+        except IOError as ioe:
+            self.log("Error opening log file: " + str(ioe))
+
+    def close_logfile(self):
+        """
+        Closes the logfile if one is open
+        """
+        if self.logfile is not None:
+            self.logfile.close()
+        self.logfile = None
+
+    def log(self, msg):
+        """
+        Logs the given message to the logfile, if any. Prints
+        to stdout otherwise
+        """
+        if self.logfile is None:
+            print(msg)
+        else:
+            self.logfile.write(msg)
+            self.logfile.write("\n")
+
 class MenuItem:
     """
     A single menu item.
@@ -223,10 +279,14 @@ class TCS:
         self.pixmap = None
         self.buttonbox = None
         self.window = None
-
+        self.current_menu = None
+        self.config = None
         self.read_config_file()
 
     def reload_config_file(self):
+        """
+        Reloads the configuration file, and reverts to the main menu.
+        """
         self.read_config_file()
         self.show_menu(self.current_menu)
 
