@@ -53,6 +53,11 @@ def cb_button_loses_focus(widget, event):
     widget.modify_bg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#707070'))
     label = widget.get_children()[0].get_children()[0]
     label.modify_fg(gtk.STATE_NORMAL, gtk.gdk.color_parse('#FFFFFF'))
+
+def cb_close(widget, event, tcs):
+    if gtk.gdk.keyval_name(event.keyval) == 'Escape':
+        tcs.current_menu.back()
+    
 #
 # End of callbacks for GTK events
 #
@@ -436,6 +441,7 @@ class TCS:
         #self.window.connect("delete_event", self.delete_event)
         self.window.connect("configure_event", self.cb_configure_event)
         self.window.connect("destroy", cb_destroy)
+        self.window.connect("key-press-event", cb_close, self)
         self.window.set_border_width(10)
 
         # This is where the actual buttons will go, the rest
